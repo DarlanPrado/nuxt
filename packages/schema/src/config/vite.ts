@@ -1,4 +1,4 @@
-import { resolve } from 'pathe'
+import { relative, resolve } from 'pathe'
 import { defineResolvers } from '../utils/definition.ts'
 
 export default defineResolvers({
@@ -111,7 +111,20 @@ export default defineResolvers({
       },
     },
     cacheDir: {
-      $resolve: async (val, get) => typeof val === 'string' ? val : resolve(await get('rootDir'), 'node_modules/.cache/vite'),
+      $resolve: async (val, get) => {
+        if (typeof val === 'string') {
+          return val
+        }
+
+        const [rootDir, workspaceDir] = await Promise.all([get('rootDir'), get('workspaceDir')])
+        const base = resolve(workspaceDir, 'node_modules/.cache/vite')
+        if (rootDir === workspaceDir) {
+          return base
+        }
+
+        const suffix = relative(workspaceDir, rootDir).replace(/[^a-zA-Z0-9._-]+/g, '_') || 'app'
+        return resolve(base, suffix)
+      },
     },
   },
 })

@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { applyDefaults } from 'untyped'
 import { resolve } from 'pathe'
@@ -6,55 +5,67 @@ import { resolve } from 'pathe'
 import { NuxtConfigSchema } from '../src/index.ts'
 import type { NuxtOptions } from '../src/index.ts'
 
+const existingPaths = new Set<string>()
+
 vi.mock('node:fs', () => ({
-  existsSync: (id: string) => id.endsWith('app'),
+  existsSync: (id: string) => existingPaths.has(id),
 }))
 
-function cacheSuffix (relativeRoot: string) {
-  return createHash('sha256').update(relativeRoot.replaceAll('\\', '/')).digest('hex').slice(0, 8)
+async function resolveCacheDir (config: { rootDir: string, workspaceDir?: string, vite?: { cacheDir?: string } }) {
+  const result = await applyDefaults(NuxtConfigSchema, config) as unknown as NuxtOptions
+  return result.vite.cacheDir
 }
 
 describe('vite.cacheDir', () => {
   it('resolves under workspaceDir when rootDir matches workspaceDir', async () => {
-    const result = await applyDefaults(NuxtConfigSchema, {
+    expect(await resolveCacheDir({
       rootDir: '/project',
       workspaceDir: '/project',
-    }) as unknown as NuxtOptions
-
-    expect(result.vite.cacheDir).toBe(resolve('/project', 'node_modules/.cache/vite'))
+    })).toBe(resolve('/project', 'node_modules/.cache/vite'))
   })
 
-  it('appends a hashed per-app suffix when rootDir is nested under workspaceDir', async () => {
-    const result = await applyDefaults(NuxtConfigSchema, {
+  it('resolves under workspaceDir when nested rootDir has no node_modules', async () => {
+    expect(await resolveCacheDir({
       rootDir: '/project/src',
       workspaceDir: '/project',
-    }) as unknown as NuxtOptions
-
-    expect(result.vite.cacheDir).toBe(resolve('/project', 'node_modules/.cache/vite', cacheSuffix('src')))
+    })).toBe(resolve('/project', 'node_modules/.cache/vite/src'))
   })
 
-  it('uses distinct hashes for relative paths that would collide when sanitised', async () => {
-    const slash = await applyDefaults(NuxtConfigSchema, {
+  it('keeps per-app caches distinct for multiple apps in a workspace', async () => {
+    expect(await resolveCacheDir({
       rootDir: '/project/apps/foo',
       workspaceDir: '/project',
-    }) as unknown as NuxtOptions
-    const underscore = await applyDefaults(NuxtConfigSchema, {
+    })).toBe(resolve('/project', 'node_modules/.cache/vite/apps/foo'))
+    expect(await resolveCacheDir({
       rootDir: '/project/apps_foo',
       workspaceDir: '/project',
-    }) as unknown as NuxtOptions
+    })).toBe(resolve('/project', 'node_modules/.cache/vite/apps_foo'))
+  })
 
-    expect(slash.vite.cacheDir).toBe(resolve('/project', 'node_modules/.cache/vite', cacheSuffix('apps/foo')))
-    expect(underscore.vite.cacheDir).toBe(resolve('/project', 'node_modules/.cache/vite', cacheSuffix('apps_foo')))
-    expect(slash.vite.cacheDir).not.toBe(underscore.vite.cacheDir)
+  it('resolves under rootDir when it has its own node_modules', async () => {
+    existingPaths.add(resolve('/project/apps/foo', 'node_modules'))
+    try {
+      expect(await resolveCacheDir({
+        rootDir: '/project/apps/foo',
+        workspaceDir: '/project',
+      })).toBe(resolve('/project/apps/foo', 'node_modules/.cache/vite'))
+    } finally {
+      existingPaths.clear()
+    }
+  })
+
+  it('resolves under rootDir when workspaceDir is not an ancestor', async () => {
+    expect(await resolveCacheDir({
+      rootDir: '/project/src',
+      workspaceDir: '/project/src/nested',
+    })).toBe(resolve('/project/src', 'node_modules/.cache/vite'))
   })
 
   it('respects an explicit vite.cacheDir', async () => {
-    const result = await applyDefaults(NuxtConfigSchema, {
+    expect(await resolveCacheDir({
       rootDir: '/project/src',
       workspaceDir: '/project',
       vite: { cacheDir: '/custom/cache' },
-    }) as unknown as NuxtOptions
-
-    expect(result.vite.cacheDir).toBe('/custom/cache')
+    })).toBe('/custom/cache')
   })
 })

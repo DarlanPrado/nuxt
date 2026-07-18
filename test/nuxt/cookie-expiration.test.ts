@@ -194,17 +194,17 @@ describe('useCookie expiration timeout', () => {
   })
 
   it('should start an expiration timer when expires changes from undefined to a Date', () => {
-    let expires: Date | undefined
+    const state: { expires?: Date } = {}
     const cookie = useCookie('expire-session-to-date', {
       default: () => 'initial',
-      expires: () => expires,
+      expires: () => state.expires,
     })
 
     cookie.value = 'session'
     vi.advanceTimersByTime(1000)
     expect(cookie.value).toBe('session')
 
-    expires = new Date(Date.now() + 1000)
+    state.expires = new Date(Date.now() + 1000)
     cookie.value = 'persistent'
 
     vi.advanceTimersByTime(1000)
@@ -212,17 +212,17 @@ describe('useCookie expiration timeout', () => {
   })
 
   it('should clear the expiration timer when expires changes from a Date to undefined', () => {
-    let expires: Date | undefined = new Date(Date.now() + 1000)
+    const state: { expires?: Date } = { expires: new Date(Date.now() + 1000) }
     const cookie = useCookie('expire-date-to-session', {
       default: () => 'initial',
-      expires: () => expires,
+      expires: () => state.expires,
     })
 
     cookie.value = 'persistent'
     vi.advanceTimersByTime(500)
     expect(cookie.value).toBe('persistent')
 
-    expires = undefined
+    state.expires = undefined
     cookie.value = 'session'
 
     vi.advanceTimersByTime(1000)

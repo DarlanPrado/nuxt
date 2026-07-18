@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { isAbsolute, join, normalize, relative, resolve } from 'pathe'
-import { addBuildPlugin, addImportsSources, addPluginTemplate, addTemplate, addTypeTemplate, addVitePlugin, componentDiagnostics, defineNuxtModule, findPath, resolveAlias } from '@nuxt/kit'
+import { addBuildPlugin, addImportsSources, addPluginTemplate, addTemplate, addTypeTemplate, addVitePlugin, componentDiagnostics, defineNuxtModule, findPath, getLayerDirectories, resolveAlias } from '@nuxt/kit'
 
 import { resolveModulePath } from 'exsolve'
 import { distDir } from '../dirs.ts'
@@ -100,6 +100,20 @@ export default defineNuxtModule<ComponentsOptions>({
         const present = isDirectorySync(dirPath)
         if (!present && !DEFAULT_COMPONENTS_DIRS_RE.test(dirOptions.path)) {
           componentDiagnostics.NUXT_B3001({ dirPath })
+        }
+
+        // Watch external component dirs in dev so newly added components are
+        // discovered without restarting (e.g. modules in a monorepo).
+        // Layers' app/ dirs are already covered by the builder watcher.
+        if (nuxt.options.dev && dirOptions.watch !== false) {
+          const inNodeModules = dirPath.includes('node_modules')
+          const coveredByLayer = getLayerDirectories(nuxt).some(dirs =>
+            dirPath === dirs.app.replace(/\/$/, '') || dirPath.startsWith(dirs.app),
+          )
+          const shouldWatch = !coveredByLayer && (inNodeModules ? dirOptions.watch === true : true)
+          if (shouldWatch && !nuxt.options.watch.includes(dirPath)) {
+            nuxt.options.watch.push(dirPath)
+          }
         }
 
         const dirs = dirPath.includes('node_modules') ? libraryComponentDirs : userComponentDirs

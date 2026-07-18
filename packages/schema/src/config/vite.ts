@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { relative, resolve } from 'pathe'
 import { defineResolvers } from '../utils/definition.ts'
 
@@ -118,11 +119,12 @@ export default defineResolvers({
 
         const [rootDir, workspaceDir] = await Promise.all([get('rootDir'), get('workspaceDir')])
         const base = resolve(workspaceDir, 'node_modules/.cache/vite')
-        if (rootDir === workspaceDir) {
+        const relativeRoot = relative(workspaceDir, rootDir).replaceAll('\\', '/')
+        if (!relativeRoot || relativeRoot === '.') {
           return base
         }
 
-        const suffix = relative(workspaceDir, rootDir).replace(/[^\w.-]+/g, '_') || 'app'
+        const suffix = createHash('sha256').update(relativeRoot).digest('hex').slice(0, 8)
         return resolve(base, suffix)
       },
     },

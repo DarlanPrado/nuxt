@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { applyDefaults } from 'untyped'
 import { resolve } from 'pathe'
@@ -9,6 +10,10 @@ vi.mock('node:fs', () => ({
   existsSync: (id: string) => id.endsWith('app'),
 }))
 
+function cacheSuffix (relativeRoot: string) {
+  return createHash('sha256').update(relativeRoot.replaceAll('\\', '/')).digest('hex').slice(0, 8)
+}
+
 describe('vite.cacheDir', () => {
   it('resolves under workspaceDir when rootDir matches workspaceDir', async () => {
     const result = await applyDefaults(NuxtConfigSchema, {
@@ -19,13 +24,28 @@ describe('vite.cacheDir', () => {
     expect(result.vite.cacheDir).toBe(resolve('/project', 'node_modules/.cache/vite'))
   })
 
-  it('appends a per-app suffix when rootDir is nested under workspaceDir', async () => {
+  it('appends a hashed per-app suffix when rootDir is nested under workspaceDir', async () => {
     const result = await applyDefaults(NuxtConfigSchema, {
       rootDir: '/project/src',
       workspaceDir: '/project',
     }) as unknown as NuxtOptions
 
-    expect(result.vite.cacheDir).toBe(resolve('/project', 'node_modules/.cache/vite', 'src'))
+    expect(result.vite.cacheDir).toBe(resolve('/project', 'node_modules/.cache/vite', cacheSuffix('src')))
+  })
+
+  it('uses distinct hashes for relative paths that would collide when sanitised', async () => {
+    const slash = await applyDefaults(NuxtConfigSchema, {
+      rootDir: '/project/apps/foo',
+      workspaceDir: '/project',
+    }) as unknown as NuxtOptions
+    const underscore = await applyDefaults(NuxtConfigSchema, {
+      rootDir: '/project/apps_foo',
+      workspaceDir: '/project',
+    }) as unknown as NuxtOptions
+
+    expect(slash.vite.cacheDir).toBe(resolve('/project', 'node_modules/.cache/vite', cacheSuffix('apps/foo')))
+    expect(underscore.vite.cacheDir).toBe(resolve('/project', 'node_modules/.cache/vite', cacheSuffix('apps_foo')))
+    expect(slash.vite.cacheDir).not.toBe(underscore.vite.cacheDir)
   })
 
   it('respects an explicit vite.cacheDir', async () => {

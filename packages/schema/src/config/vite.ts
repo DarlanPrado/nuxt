@@ -122,7 +122,7 @@ export default defineResolvers({
           return base
         }
 
-        const suffix = relative(workspaceDir, rootDir).replace(/[^a-zA-Z0-9._-]+/g, '_') || 'app'
+        const suffix = relative(workspaceDir, rootDir).replace(/[^\w.-]+/g, '_') || 'app'
         return resolve(base, suffix)
       },
     },

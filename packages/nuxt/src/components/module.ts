@@ -102,9 +102,7 @@ export default defineNuxtModule<ComponentsOptions>({
           componentDiagnostics.NUXT_B3001({ dirPath })
         }
 
-        // Watch external component dirs in dev so newly added components are
-        // discovered without restarting (e.g. modules in a monorepo).
-        // Layers' app/ dirs are already covered by the builder watcher.
+        // Watch external component dirs; layer app dirs are already watched.
         if (nuxt.options.dev && dirOptions.watch !== false) {
           const inNodeModules = dirPath.includes('node_modules')
           const coveredByLayer = getLayerDirectories(nuxt).some(dirs =>

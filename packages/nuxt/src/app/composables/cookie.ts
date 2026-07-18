@@ -109,9 +109,9 @@ export function useCookie<T = string | null | undefined> (name: string, _opts?: 
 
   const getDelay = () => {
     if (opts.maxAge !== undefined) { return opts.maxAge * 1000 }
-    if (!opts.expires) { return 0 }
+    if (!opts.expires) { return undefined }
     const expires = resolveExpires(opts.expires)
-    return expires ? expires.getTime() - Date.now() : 0
+    return expires ? expires.getTime() - Date.now() : undefined
   }
 
   const hasExpired = delay !== undefined && delay <= 0
@@ -119,7 +119,7 @@ export function useCookie<T = string | null | undefined> (name: string, _opts?: 
   const cookieValue = klona(hasExpired ? undefined : (cookies[name] as any) ?? opts.default?.())
 
   // use a custom ref to expire the cookie on client side otherwise use a plain ref (or cookieServerRef on the server to track writes for the `refresh` option)
-  const cookie = import.meta.client && delay && !hasExpired
+  const cookie = import.meta.client && (typeof opts.expires === 'function' || (delay && !hasExpired))
     ? cookieRef<T | undefined>(cookieValue, delay, getDelay, opts.watch && opts.watch !== 'shallow')
     : import.meta.server
       ? cookieServerRef<T | undefined>(name, cookieValue)
@@ -317,7 +317,7 @@ function writeServerCookie (event: H3Event, name: string, value: string | undefi
 const MAX_TIMEOUT_DELAY = 2_147_483_647
 
 // custom ref that will update the value to undefined if the cookie expires
-function cookieRef<T> (value: T | undefined, initialDelay: number, getDelay: () => number, shouldWatch: boolean) {
+function cookieRef<T> (value: T | undefined, initialDelay: number | undefined, getDelay: () => number | undefined, shouldWatch: boolean) {
   let timeout: NodeJS.Timeout
   let unsubscribe: (() => void) | undefined
   let elapsed = 0
@@ -334,11 +334,13 @@ function cookieRef<T> (value: T | undefined, initialDelay: number, getDelay: () 
     if (shouldWatch) { unsubscribe = watch(internalRef, trigger) }
 
     function scheduleTimeout () {
-      const timeRemaining = delay - elapsed
+      const currentDelay = delay
+      if (currentDelay === undefined) { return }
+      const timeRemaining = currentDelay - elapsed
       const timeoutLength = timeRemaining < MAX_TIMEOUT_DELAY ? timeRemaining : MAX_TIMEOUT_DELAY
       timeout = setTimeout(() => {
         elapsed += timeoutLength
-        if (elapsed < delay) { return scheduleTimeout() }
+        if (elapsed < currentDelay) { return scheduleTimeout() }
 
         internalRef.value = undefined
         trigger()

@@ -581,14 +581,17 @@ describe.skipIf(!isTestingAppManifest)('app manifests', () => {
       }
     `)
   })
-  it('matches case-insensitively to mirror vue-router defaults', () => {
-    expect(getRouteRules({ path: '/Pre/spa/thing' })).toMatchObject({
-      prerender: true,
-      ssr: false,
-    })
-    expect(getRouteRules({ path: '/PRE/test' })).toMatchObject({
-      redirect: '/',
-    })
+  it('matches route-rule casing consistently with vue-router', () => {
+    const spaRules = getRouteRules({ path: '/Pre/spa/thing' })
+    const redirectRules = getRouteRules({ path: '/PRE/test' })
+
+    if (process.env.PROJECT === 'nuxt-legacy') {
+      expect(spaRules).toMatchObject({ prerender: true, ssr: false })
+      expect(redirectRules).toMatchObject({ redirect: '/' })
+    } else {
+      expect(spaRules).not.toHaveProperty('prerender')
+      expect(redirectRules).not.toHaveProperty('redirect')
+    }
   })
 })
 
@@ -666,8 +669,14 @@ describe('routing utilities: `navigateTo`', () => {
     return vi.waitFor(() => new Promise<void>(resolve => nuxtApp.hooks.hookOnce('page:finish', () => resolve())))
   }
 
+  it('matches routes with compatibility-version casing', () => {
+    router.addRoute({ name: 'case-sensitive-test', path: '/case-sensitive-test', component: defineComponent({}) })
+    expect(router.resolve('/Case-Sensitive-Test').name === 'case-sensitive-test').toBe(process.env.PROJECT === 'nuxt-legacy')
+    router.removeRoute('case-sensitive-test')
+  })
+
   it('navigateTo should disallow navigation to external URLs by default', () => {
-    expect(() => navigateTo('https://test.com')).toThrowErrorMatchingInlineSnapshot('[Error: Navigating to an external URL is not allowed by default. Use `navigateTo(url, { external: true })`.]')
+    expect(() => navigateTo('https://test.com')).toThrowErrorMatchingInlineSnapshot('[NUXT_E2001: NUXT_E2001]')
     expect(() => navigateTo('https://test.com', { external: true })).not.toThrow()
   })
   it('navigateTo should disallow navigation to data/script URLs', () => {
@@ -675,21 +684,21 @@ describe('routing utilities: `navigateTo`', () => {
       ['data:alert("hi")', 'data'],
       ['\0data:alert("hi")', 'data'],
     ]
-    for (const [url, protocol] of urls) {
-      expect(() => navigateTo(url, { external: true })).toThrow(`Cannot navigate to a URL with '${protocol}:' protocol.`)
+    for (const [url] of urls) {
+      expect(() => navigateTo(url, { external: true })).toThrow('NUXT_E2002')
     }
   })
   it('navigateTo should disallow opening data/script URLs via the `open` option', () => {
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     try {
       const urls = [
-        ['javascript:alert("hi")', 'javascript'],
-        ['data:alert("hi")', 'data'],
-        ['vbscript:alert("hi")', 'vbscript'],
-        ['\0javascript:alert("hi")', 'javascript'],
+        'javascript:alert("hi")',
+        'data:alert("hi")',
+        'vbscript:alert("hi")',
+        '\0javascript:alert("hi")',
       ]
-      for (const [url, protocol] of urls) {
-        expect(() => navigateTo(url, { open: { target: '_blank' } })).toThrow(`Cannot navigate to a URL with '${protocol}:' protocol.`)
+      for (const url of urls) {
+        expect(() => navigateTo(url, { open: { target: '_blank' } })).toThrow('NUXT_E2002')
       }
       expect(open).not.toHaveBeenCalled()
     } finally {
@@ -712,7 +721,7 @@ describe('routing utilities: `navigateTo`', () => {
       '\0data:alert("hi")',
     ]
     for (const url of urls) {
-      expect(() => reloadNuxtApp({ path: url })).toThrow(`Cannot navigate to a URL with a different host: '${url}'.`)
+      expect(() => reloadNuxtApp({ path: url })).toThrow('NUXT_E2010')
     }
   })
   it('reloadNuxtApp should disallow cross-origin paths', () => {
@@ -722,7 +731,7 @@ describe('routing utilities: `navigateTo`', () => {
       '\\\\evil.com',
     ]
     for (const url of urls) {
-      expect(() => reloadNuxtApp({ path: url })).toThrow(`Cannot navigate to a URL with a different host: '${url}'.`)
+      expect(() => reloadNuxtApp({ path: url })).toThrow('NUXT_E2010')
     }
   })
   it('reloadNuxtApp should allow same-origin paths', () => {

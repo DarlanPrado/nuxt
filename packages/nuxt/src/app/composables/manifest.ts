@@ -1,7 +1,7 @@
 import type { H3Event } from '@nuxt/nitro-server/h3'
 import type { $Fetch, NitroRouteRules } from 'nitro/types'
 import { useRuntimeConfig } from '../nuxt'
-import { manifestDiagnostics } from '../diagnostics/manifest.ts'
+import { manifestDiagnostics } from '../diagnostics/manifest'
 import { appManifest as isAppManifestEnabled } from '#build/nuxt.config.mjs'
 import { buildAssetsURL } from '#internal/nuxt/paths'
 import { $fetch as _$fetch } from '#build/fetch'
@@ -68,7 +68,7 @@ export function getRouteRules (url: string): Record<string, any>
 export function getRouteRules (arg: string | H3Event | { path: string }) {
   const path = typeof arg === 'string' ? arg : 'url' in arg ? arg.url.pathname : arg.path
   try {
-    return routeRulesMatcher(path.toLowerCase())
+    return routeRulesMatcher(path)
   } catch (e) {
     manifestDiagnostics.NUXT_E5003({ path, cause: e })
     return {}

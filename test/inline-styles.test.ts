@@ -31,6 +31,17 @@ describe.skipIf(!runsOnceInMatrix)('inline styles', () => {
     expect(cssLinks, page).toEqual([])
   })
 
+  // https://github.com/nuxt/nuxt/issues/35255
+  it.fails('drops duplicate stylesheet links for fully inlined CSS in a shared chunk', async () => {
+    for (const page of ['shared-a', 'shared-b']) {
+      const html = await readFile(join(outputDir, 'public', page, 'index.html'), 'utf-8')
+      expect(html, page).toContain('--inline-shared-box-token:shared-box')
+
+      const cssLinks = [...html.matchAll(/<link [^>]*rel="stylesheet"[^>]*href="([^"]+)"/g)].map(m => m[1]!)
+      expect(cssLinks, page).toEqual([])
+    }
+  })
+
   // https://github.com/nuxt/nuxt/issues/31558
   it('inlines CSS for a non-island child of a server component', async () => {
     const html = await readFile(join(outputDir, 'public', 'index.html'), 'utf-8')
@@ -70,5 +81,17 @@ describe.skipIf(!runsOnceInMatrix)('inline styles', () => {
     expect(html).toContain(token)
     const cssLinks = [...html.matchAll(/<link [^>]*rel="stylesheet"[^>]*href="([^"]+)"/g)].map(m => m[1]!)
     expect(cssLinks).toEqual([])
+  })
+  // https://github.com/nuxt/nuxt/issues/35591
+  it('inlined SSR CSS class names match rendered markup when generateScopedName is a string pattern', async () => {
+    const html = await readFile(join(outputDir, 'public', 'css-modules-scoped/index.html'), 'utf-8')
+
+    const inlinedStyles = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map(m => m[1]!).join('\n')
+    const rule = inlinedStyles.match(/\.([\w-]+)\s*\{[^}]*--inline-css-modules-scoped-token:\s*css-modules-scoped[^}]*\}/)
+    expect(rule, 'CSS module rule was not inlined into the SSR response').toBeTruthy()
+
+    const scopedClass = rule![1]!
+    const markupClasses = new Set([...html.matchAll(/\bclass="([^"]+)"/g)].flatMap(m => m[1]!.split(/\s+/)))
+    expect(markupClasses).toContain(scopedClass)
   })
 })

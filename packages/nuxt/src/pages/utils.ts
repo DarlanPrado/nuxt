@@ -170,6 +170,13 @@ export async function augmentPages (routes: NuxtPage[], vfs: Record<string, stri
         routeMeta.rules = defu({}, routeMeta.rules, route.rules)
       }
 
+      // Only the first route per file takes the file's `name`/`path`; a `pages:extend` route
+      // reusing that file keeps its own, else the duplicate route name drops the original (#27358).
+      if (ctx.augmentedPages.has(route.file)) {
+        delete routeMeta.name
+        delete routeMeta.path
+      }
+
       Object.assign(route, routeMeta)
       ctx.augmentedPages.add(route.file)
     }
@@ -375,7 +382,7 @@ export function normalizeRoutes (routes: NuxtPage[], metaImports: Set<string> = 
   return {
     imports: metaImports,
     routes: genArrayFromRaw(routes.map((page) => {
-      const markedDynamic = page.meta?.[DYNAMIC_META_KEY] ?? new Set()
+      const markedDynamic = page.meta?.[DYNAMIC_META_KEY] as Set<string> | undefined ?? new Set<string>()
       const metaFiltered: Record<string, any> = {}
       let skipMeta = true
       for (const key in page.meta || {}) {

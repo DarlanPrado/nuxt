@@ -102,19 +102,22 @@ export default defineNuxtModule<ComponentsOptions>({
           componentDiagnostics.NUXT_B3001({ dirPath })
         }
 
-        // Watch external component dirs; layer app dirs are already watched.
-        if (nuxt.options.dev && dirOptions.watch !== false) {
-          const inNodeModules = dirPath.includes('node_modules')
+        const inNodeModules = dirPath.includes('node_modules')
+
+        // Watch external component dirs so newly added components are picked up in
+        // dev without a restart. Layer app dirs are already watched, and the
+        // builder watchers unconditionally ignore `node_modules`, so paths there
+        // cannot be watched regardless of the `watch` option.
+        if (nuxt.options.dev && dirOptions.watch !== false && !inNodeModules) {
           const coveredByLayer = getLayerDirectories(nuxt).some(dirs =>
             dirPath === dirs.app.replace(/\/$/, '') || dirPath.startsWith(dirs.app),
           )
-          const shouldWatch = !coveredByLayer && (inNodeModules ? dirOptions.watch === true : true)
-          if (shouldWatch && !nuxt.options.watch.includes(dirPath)) {
+          if (!coveredByLayer && !nuxt.options.watch.includes(dirPath)) {
             nuxt.options.watch.push(dirPath)
           }
         }
 
-        const dirs = dirPath.includes('node_modules') ? libraryComponentDirs : userComponentDirs
+        const dirs = inNodeModules ? libraryComponentDirs : userComponentDirs
 
         dirs.push({
           global: moduleOptions.global,

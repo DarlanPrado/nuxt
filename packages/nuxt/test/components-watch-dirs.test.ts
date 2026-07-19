@@ -95,4 +95,39 @@ describe('components dir watching', { sequential: true }, async () => {
 
     await nuxt.close()
   })
+
+  it('does not watch component dirs inside node_modules', async () => {
+    const rootDir = join(tmpDir, 'project')
+    const nodeModulesDir = join(rootDir, 'node_modules/external-module/components')
+    await mkdir(nodeModulesDir, { recursive: true })
+
+    const nuxt = await loadNuxt({
+      cwd: rootDir,
+      ready: true,
+      overrides: {
+        dev: true,
+        modules: [
+          () => {
+            addComponentsDir({
+              path: nodeModulesDir,
+              watch: true,
+            })
+          },
+        ],
+        builder: {
+          bundle: () => {
+            nuxt.hooks.removeAllHooks()
+            return Promise.resolve()
+          },
+        },
+      },
+    })
+
+    await build(nuxt)
+
+    expect(nuxt.options.watch.map(p => typeof p === 'string' ? normalize(p) : p))
+      .not.toContain(normalize(nodeModulesDir))
+
+    await nuxt.close()
+  })
 })
